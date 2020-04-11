@@ -1,3 +1,4 @@
+from collections import Counter
 import os
 from io import open
 import torch
@@ -10,10 +11,14 @@ UNK = 2
 NUM = 3
 
 
+INITIAL_WORD2IDX = {"<sos>": SOS, "<eos>": EOS, "<unk>": UNK, "<num>": NUM}
+INITIAL_IDX2WORD = ["<sos>", "<eos>", "<unk>", "<num>"]
+
+
 class Dictionary:
     def __init__(self):
-        self.word2idx = {"<sos>": SOS, "<eos>": EOS, "<unk>": UNK, "<num>": NUM}
-        self.idx2word = ["<sos>", "<eos>", "<unk>", "<num>"]
+        self.word2idx = INITIAL_WORD2IDX.copy()
+        self.idx2word = INITIAL_IDX2WORD.copy()
         self.count = dict.fromkeys(self.word2idx.keys(), 1)
 
     def add_word(self, word):
@@ -24,6 +29,16 @@ class Dictionary:
         else:
             self.count[word] += 1
         return self.word2idx[word]
+
+    def shrink(self, size: int = 10_000):
+        """Reduces dictionary to `size` most popular words."""
+        most_popular_words = sorted(self.word2idx.keys(), key=lambda k: self.count[k], reverse=True)
+        self.count = Counter(most_popular_words)
+        self.word2idx = INITIAL_WORD2IDX.copy()
+        self.idx2word = INITIAL_IDX2WORD.copy()
+        for word in most_popular_words[:size]:
+            self.idx2word.append(word)
+            self.word2idx[word] = len(self.idx2word) - 1
 
     def __getitem__(self, word: str) -> int:
         return self.word2idx.get(word, UNK)
@@ -52,22 +67,25 @@ class Corpus:
         self.valid = self.tokenize(os.path.join(path, 'valid.txt'), train=False)
         self.test = self.tokenize(os.path.join(path, 'test.txt'), train=False)
 
-    def tokenize(self, path, train=True):
+    def tokenize(self, path, train: bool = True, shrink: int = None):
         """Tokenizes a text file and adds words to a dictionary if in train mode."""
         assert os.path.exists(path)
         if train:
             # Add words to the dictionary
             with open(path, 'r', encoding="utf8") as f:
                 for line in f:
-                    words = ["<sos>"] + tokenize(line) + ['<eos>']
+                    words = ["<sos>"] + tokenize(line) + ["<eos>"]
                     for word in words:
                         self.dictionary.add_word(word)
+
+        if shrink:
+            self.dictionary.shrink(size=shrink)
 
         # Tokenize file content
         with open(path, 'r', encoding="utf8") as f:
             idss = []
             for line in f:
-                words = line.split() + ['<eos>']
+                words = ["<sos>"] + line.split() + ["<eos>"]
                 ids = []
                 for word in words:
                     ids.append(self.dictionary[word])
