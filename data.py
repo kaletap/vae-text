@@ -1,6 +1,8 @@
 import os
 from io import open
 import torch
+from string import digits
+from typing import List
 
 SOS = 0
 EOS = 1
@@ -30,6 +32,19 @@ class Dictionary:
         return len(self.idx2word)
 
 
+def normalize_word(word: str) -> str:
+    remove_digits = str.maketrans('', '', digits)
+    word = word.lower()
+    word = word.translate(remove_digits)
+    return word
+
+
+def tokenize(line: str) -> List[str]:
+    words = line.split()
+    words = [normalize_word(word) for word in words]
+    return list(filter(lambda word: word, words))
+
+
 class Corpus:
     def __init__(self, path):
         self.dictionary = Dictionary()
@@ -38,13 +53,13 @@ class Corpus:
         self.test = self.tokenize(os.path.join(path, 'test.txt'), train=False)
 
     def tokenize(self, path, train=True):
-        """Tokenizes a text file."""
+        """Tokenizes a text file and adds words to a dictionary if in train mode."""
         assert os.path.exists(path)
         if train:
             # Add words to the dictionary
             with open(path, 'r', encoding="utf8") as f:
                 for line in f:
-                    words = ["<sos>"] + line.split() + ['<eos>']
+                    words = ["<sos>"] + tokenize(line) + ['<eos>']
                     for word in words:
                         self.dictionary.add_word(word)
 
