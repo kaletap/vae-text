@@ -4,6 +4,7 @@ from io import open
 import torch
 from string import digits
 from typing import List
+import torch
 
 SOS = 0
 EOS = 1
@@ -67,14 +68,14 @@ class Corpus:
         self.valid = self.tokenize(os.path.join(path, 'valid.txt'), train=False)
         self.test = self.tokenize(os.path.join(path, 'test.txt'), train=False)
 
-    def tokenize(self, path, train: bool = True, shrink: int = None):
+    def tokenize(self, path: str, train: bool = True, shrink: int = None) -> torch.Tensor:
         """Tokenizes a text file and adds words to a dictionary if in train mode."""
         assert os.path.exists(path)
         if train:
             # Add words to the dictionary
             with open(path, 'r', encoding="utf8") as f:
                 for line in f:
-                    words = ["<sos>"] + tokenize(line) + ["<eos>"]
+                    words = tokenize(line) + ["<eos>"]
                     for word in words:
                         self.dictionary.add_word(word)
 
@@ -85,7 +86,7 @@ class Corpus:
         with open(path, 'r', encoding="utf8") as f:
             idss = []
             for line in f:
-                words = ["<sos>"] + line.split() + ["<eos>"]
+                words = line.split() + ["<eos>"]
                 ids = []
                 for word in words:
                     ids.append(self.dictionary[word])
