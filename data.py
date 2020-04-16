@@ -5,6 +5,7 @@ import torch
 from string import digits
 from typing import List
 import torch
+from transformers import BertTokenizer
 
 SOS = 0
 EOS = 1
@@ -48,22 +49,10 @@ class Dictionary:
         return len(self.idx2word)
 
 
-def normalize_word(word: str) -> str:
-    remove_digits = str.maketrans('', '', digits)
-    word = word.lower()
-    word = word.translate(remove_digits)
-    return word
-
-
-def tokenize(line: str) -> List[str]:
-    words = line.split()
-    words = [normalize_word(word) for word in words]
-    return list(filter(lambda word: word, words))
-
-
 class Corpus:
     def __init__(self, path):
         self.dictionary = Dictionary()
+        self.tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
         self.train = self.tokenize(os.path.join(path, 'train.txt'))
         self.valid = self.tokenize(os.path.join(path, 'valid.txt'), train=False)
         self.test = self.tokenize(os.path.join(path, 'test.txt'), train=False)
@@ -71,26 +60,16 @@ class Corpus:
     def tokenize(self, path: str, train: bool = True, shrink: int = None) -> torch.Tensor:
         """Tokenizes a text file and adds words to a dictionary if in train mode."""
         assert os.path.exists(path)
-        if train:
-            # Add words to the dictionary
-            with open(path, 'r', encoding="utf8") as f:
-                for line in f:
-                    words = tokenize(line) + ["<eos>"]
-                    for word in words:
-                        self.dictionary.add_word(word)
-
-        if shrink:
-            self.dictionary.shrink(size=shrink)
-
-        # Tokenize file content
         with open(path, 'r', encoding="utf8") as f:
             idss = []
             for line in f:
-                words = line.split() + ["<eos>"]
-                ids = []
-                for word in words:
-                    ids.append(self.dictionary[word])
-                idss.append(torch.tensor(ids).type(torch.int64))
-            ids = torch.cat(idss)
-
-        return ids
+                tokens = self.tokenizer.encode(line)
+                if train:
+                    # Add words to the dictionary
+                    words = self.tokenizer.decode(tokens)
+                    for word in words:
+                        self.dictionary.add_word(word)
+                idss.append(torch.tensor(tokens))
+        if shrink:
+            self.dictionary.shrink(size=shrink)
+        return torch.cat(idss)
